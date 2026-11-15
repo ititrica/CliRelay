@@ -114,7 +114,7 @@ func TestAntigravityContentPathsRetryOnLocationGate(t *testing.T) {
 			t.Errorf("%s does not retry on the location gate", path)
 			continue
 		}
-		statusErr := strings.Index(body[hostCheck:], "statusErr{code: httpResp.StatusCode")
+		statusErr := strings.Index(body[hostCheck:], "newAntigravityStatusErr(httpResp.StatusCode, bodyBytes)")
 		if statusErr < 0 {
 			t.Errorf("%s: the gate check is not followed by the status error it must pre-empt", path)
 			continue

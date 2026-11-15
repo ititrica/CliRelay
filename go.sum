@@ -129,8 +129,8 @@ github.com/hashicorp/golang-lru/v2 v2.0.7 h1:a+bsQ5rvGLjzHuww6tVxozPZFVghXaHOwFs
 github.com/hashicorp/golang-lru/v2 v2.0.7/go.mod h1:QeFd9opnmA6QUJc5vARoKUSoFhyfM2/ZepoAG6RGpeM=
 github.com/hashicorp/hcl/v2 v2.18.1 h1:6nxnOJFku1EuSawSD81fuviYUV8DxFr3fp2dUi3ZYSo=
 github.com/hashicorp/hcl/v2 v2.18.1/go.mod h1:ThLC89FV4p9MPW804KVbe/cEXoQ8NZEh+JtMeeGErHE=
-github.com/ititrica/cpa-plugin-antigravity-coding-filter v0.0.0-20261115140720-b1d8e5fd9dce h1:JEr//HLwUNErZroM9MgWLh4zqQ1x6W6VBZrsT+eca7k=
-github.com/ititrica/cpa-plugin-antigravity-coding-filter v0.0.0-20261115140720-b1d8e5fd9dce/go.mod h1:WmBKOKj+YsmAD0e9G5f7GZrEaSC6nNxC4Qqg1DDXK00=
+github.com/ititrica/cpa-plugin-antigravity-coding-filter v0.0.0-20261115164048-ed2c670e2d21 h1:5gtuqTKal4P1Drm8eH7+yPBTvyU6lUlFjH/6e3CuYJ4=
+github.com/ititrica/cpa-plugin-antigravity-coding-filter v0.0.0-20261115164048-ed2c670e2d21/go.mod h1:WmBKOKj+YsmAD0e9G5f7GZrEaSC6nNxC4Qqg1DDXK00=
 github.com/jackc/pgpassfile v1.0.0 h1:/6Hmqy13Ss2zCq62VdNG8tM1wchn8zjSGOBJ6icpsIM=
 github.com/jackc/pgpassfile v1.0.0/go.mod h1:CEx0iS5ambNFdcRtxPj5JhEz+xB6uRky5eyVu/W2HEg=
 github.com/jackc/pgservicefile v0.0.0-20240606120523-5a60cdf6a761 h1:iCEnooe7UlwOQYpKFhBabPMi4aNAfoODPEFNiAnClxo=
