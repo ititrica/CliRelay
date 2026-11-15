@@ -6,7 +6,10 @@ import (
 	"io"
 	"testing"
 
+	antigravityauth "github.com/router-for-me/CLIProxyAPI/v6/internal/auth/antigravity"
+	"github.com/router-for-me/CLIProxyAPI/v6/internal/config"
 	cliproxyauth "github.com/router-for-me/CLIProxyAPI/v6/sdk/cliproxy/auth"
+	"github.com/tidwall/gjson"
 )
 
 func TestAntigravityBuildRequest_SanitizesGeminiToolSchema(t *testing.T) {
@@ -22,6 +25,48 @@ func TestAntigravityBuildRequest_SanitizesGeminiToolSchema(t *testing.T) {
 		t.Fatalf("parameters missing or invalid type")
 	}
 	assertSchemaSanitizedAndPropertyPreserved(t, params)
+}
+
+func TestAntigravityBuildRequestAddsHubInstructionAndHeadersForGeminiFamily(t *testing.T) {
+	cfg := &config.Config{}
+	cfg.IdentityFingerprint.Antigravity = config.NormalizeAntigravityIdentityFingerprint(config.AntigravityIdentityFingerprintConfig{})
+	executor := NewAntigravityExecutor(cfg)
+	auth := &cliproxyauth.Auth{Metadata: map[string]any{"project_id": "test-project"}}
+
+	req, _, err := executor.buildRequest(context.Background(), auth, "token", "gemini-4-hydrogen-medium", []byte(`{
+		"request": {
+			"contents": [{"role":"user","parts":[{"text":"hello"}]}],
+			"systemInstruction": {"parts":[{"text":"You are a foreign coding agent."}]}
+		}
+	}`), true, "", "https://example.com", 0)
+	if err != nil {
+		t.Fatalf("buildRequest error: %v", err)
+	}
+
+	if got := req.Header.Get("User-Agent"); got != antigravityauth.ClientUserAgent {
+		t.Fatalf("User-Agent = %q, want %q", got, antigravityauth.ClientUserAgent)
+	}
+	if got := req.Header.Get("X-Goog-Api-Client"); got != antigravityauth.APIClient {
+		t.Fatalf("X-Goog-Api-Client = %q, want %q", got, antigravityauth.APIClient)
+	}
+	if got := req.Header.Get("Client-Metadata"); got != antigravityauth.ClientMetadata {
+		t.Fatalf("Client-Metadata = %q, want %q", got, antigravityauth.ClientMetadata)
+	}
+
+	raw, err := io.ReadAll(req.Body)
+	if err != nil {
+		t.Fatalf("read request body error: %v", err)
+	}
+	parts := gjson.GetBytes(raw, "request.systemInstruction.parts").Array()
+	if len(parts) < 3 {
+		t.Fatalf("system instruction parts = %d, want Hub preamble plus original prompt: %s", len(parts), raw)
+	}
+	if got := parts[0].Get("text").String(); got != systemInstruction {
+		t.Fatalf("Hub system instruction = %q, want %q", got, systemInstruction)
+	}
+	if got := parts[2].Get("text").String(); got != "You are a foreign coding agent." {
+		t.Fatalf("original system instruction = %q, want it preserved", got)
+	}
 }
 
 func TestAntigravityBuildRequest_SanitizesAntigravityToolSchema(t *testing.T) {

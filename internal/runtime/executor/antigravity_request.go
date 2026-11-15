@@ -86,17 +86,25 @@ func (e *AntigravityExecutor) buildRequest(ctx context.Context, auth *cliproxyau
 		payloadStr = util.CleanJSONSchemaForGemini(payloadStr)
 	}
 
-	if useAntigravitySchema {
-		systemInstructionPartsResult := gjson.Get(payloadStr, "request.systemInstruction.parts")
-		payloadStr, _ = sjson.Set(payloadStr, "request.systemInstruction.role", "user")
-		payloadStr, _ = sjson.Set(payloadStr, "request.systemInstruction.parts.0.text", systemInstruction)
-		payloadStr, _ = sjson.Set(payloadStr, "request.systemInstruction.parts.1.text", fmt.Sprintf("Please ignore following [ignore]%s[/ignore]", systemInstruction))
+	// Every Antigravity generation request carries the Hub's coding-agent
+	// system instruction, including Gemini-family models. Previously this was
+	// added only for Claude and gemini-3-pro-high, leaving requests from other
+	// Agents with a foreign or missing system block and an obvious body-shape
+	// mismatch at the upstream. Preserve the caller's instruction after the Hub
+	// preamble so the request keeps its semantics while matching the official
+	// envelope.
+	existingSystemInstruction := gjson.Get(payloadStr, "request.systemInstruction")
+	systemInstructionPartsResult := existingSystemInstruction.Get("parts")
+	payloadStr, _ = sjson.Set(payloadStr, "request.systemInstruction.role", "user")
+	payloadStr, _ = sjson.Set(payloadStr, "request.systemInstruction.parts.0.text", systemInstruction)
+	payloadStr, _ = sjson.Set(payloadStr, "request.systemInstruction.parts.1.text", fmt.Sprintf("Please ignore following [ignore]%s[/ignore]", systemInstruction))
 
-		if systemInstructionPartsResult.Exists() && systemInstructionPartsResult.IsArray() {
-			for _, partResult := range systemInstructionPartsResult.Array() {
-				payloadStr, _ = sjson.SetRaw(payloadStr, "request.systemInstruction.parts.-1", partResult.Raw)
-			}
+	if systemInstructionPartsResult.Exists() && systemInstructionPartsResult.IsArray() {
+		for _, partResult := range systemInstructionPartsResult.Array() {
+			payloadStr, _ = sjson.SetRaw(payloadStr, "request.systemInstruction.parts.-1", partResult.Raw)
 		}
+	} else if existingSystemInstruction.Type == gjson.String && strings.TrimSpace(existingSystemInstruction.String()) != "" {
+		payloadStr, _ = sjson.Set(payloadStr, "request.systemInstruction.parts.2.text", existingSystemInstruction.String())
 	}
 
 	if strings.Contains(modelName, "claude") {
@@ -160,6 +168,11 @@ func (e *AntigravityExecutor) buildCountTokensRequest(ctx context.Context, auth 
 	httpReq.Header.Set("Content-Type", "application/json")
 	httpReq.Header.Set("Authorization", "Bearer "+token)
 	httpReq.Header.Set("User-Agent", resolveUserAgent(auth))
+	if e != nil && e.cfg != nil {
+		if fp, _, enabled := antigravityIdentityFingerprint(e.cfg, auth, ctx); enabled {
+			applyAntigravityIdentityFingerprintHeaders(httpReq.Header, fp)
+		}
+	}
 	httpReq.Header.Set("Accept", "application/json")
 	if host := resolveHost(base); host != "" {
 		httpReq.Host = host

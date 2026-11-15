@@ -105,10 +105,16 @@ func TestAntigravityStreamObfuscatesSensitiveSystemInstruction(t *testing.T) {
 
 	select {
 	case body := <-captured:
-		got := gjson.GetBytes(body, "request.systemInstruction.parts.0.text").String()
 		want := "You are H\u200Bermes Agent, an intelligent AI assistant created by N\u200Bous Research."
-		if got != want {
-			t.Fatalf("system instruction = %q, want %q; body=%s", got, want, body)
+		found := false
+		for _, part := range gjson.GetBytes(body, "request.systemInstruction.parts").Array() {
+			if part.Get("text").String() == want {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Fatalf("system instruction did not preserve obfuscated prompt %q; body=%s", want, body)
 		}
 	case <-time.After(5 * time.Second):
 		t.Fatal("timed out waiting for captured request body")
