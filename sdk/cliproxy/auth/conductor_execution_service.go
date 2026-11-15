@@ -43,9 +43,10 @@ type mixedExecutionCandidate struct {
 	executor ProviderExecutor
 	provider string
 	// group is the route group the credential was picked in.
-	group   string
-	execCtx context.Context
-	execReq cliproxyexecutor.Request
+	group    string
+	execCtx  context.Context
+	execReq  cliproxyexecutor.Request
+	execOpts cliproxyexecutor.Options
 }
 
 func newExecutionService(manager *Manager) executionService {
@@ -142,7 +143,7 @@ func (s executionService) executeMixedOnce(ctx context.Context, providers []stri
 		var resp cliproxyexecutor.Response
 		errExec := s.egressRefusal(candidate)
 		if errExec == nil {
-			resp, errExec = candidate.executor.Execute(candidate.execCtx, candidate.auth, candidate.execReq, scope.opts)
+			resp, errExec = candidate.executor.Execute(candidate.execCtx, candidate.auth, candidate.execReq, candidate.execOpts)
 		}
 		releaseSlot()
 		result := Result{
@@ -193,7 +194,7 @@ func (s executionService) executeCountMixedOnce(ctx context.Context, providers [
 		var resp cliproxyexecutor.Response
 		errExec := s.egressRefusal(candidate)
 		if errExec == nil {
-			resp, errExec = candidate.executor.CountTokens(candidate.execCtx, candidate.auth, candidate.execReq, scope.opts)
+			resp, errExec = candidate.executor.CountTokens(candidate.execCtx, candidate.auth, candidate.execReq, candidate.execOpts)
 		}
 		releaseSlot()
 		if errExec != nil {
@@ -257,7 +258,7 @@ func (s executionService) executeStreamMixedOnce(ctx context.Context, providers 
 		}
 
 		attempt.Streaming()
-		wrapped := s.wrapStreamResult(candidate.execCtx, candidate.auth, candidate.provider, scope.routeModel, scope.opts.SourceFormat, streamResult, releaseSlot, attempt)
+		wrapped := s.wrapStreamResult(candidate.execCtx, candidate.auth, candidate.provider, scope.routeModel, candidate.execOpts.SourceFormat, streamResult, releaseSlot, attempt)
 		wrapped.AuthID = candidate.auth.ID
 		wrapped.FailedAuthIDs = scope.failed
 		return wrapped, nil
@@ -308,6 +309,13 @@ func (s executionService) nextReadyCandidate(ctx context.Context, scope *mixedEx
 		}
 		if errModeration := s.manager.moderateRequest(candidate.execCtx, candidate.auth, scope.opts); errModeration != nil {
 			return nil, nil, errModeration
+		}
+		candidate.execOpts = scope.opts
+		if rewrittenReq, rewrittenOpts, errRewrite := s.manager.rewriteRequest(candidate.execCtx, candidate.auth, candidate.execReq, candidate.execOpts); errRewrite != nil {
+			return nil, nil, errRewrite
+		} else {
+			candidate.execReq = rewrittenReq
+			candidate.execOpts = rewrittenOpts
 		}
 
 		releaseSlot, errSlot := s.manager.acquireAccountSlot(candidate.auth)

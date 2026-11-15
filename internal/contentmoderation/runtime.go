@@ -48,6 +48,11 @@ type RuntimeModerator struct {
 	// process's registry (SecretMasking). Tests supply their own.
 	secretMasking *SecretMaskingRegistry
 
+	// antigravityFilter is the native v6 compatibility path for the v7 dynamic
+	// plugin. It is configured once during startup and then read concurrently.
+	antigravityFilterEnabled bool
+	antigravityFilter        antigravityFilterConfig
+
 	lastGoodMu sync.RWMutex
 	lastGood   map[resolutionKey]resolvedProfile
 
@@ -207,7 +212,13 @@ func (m *RuntimeModerator) Metrics() ModerationMetrics {
 }
 
 func (m *RuntimeModerator) Moderate(ctx context.Context, auth *coreauth.Auth, opts cliproxyexecutor.Options) coreauth.RequestModerationResult {
-	if m == nil || auth == nil || m.resolver == nil || m.evaluator == nil {
+	if m == nil || auth == nil {
+		return coreauth.RequestModerationResult{}
+	}
+	if result := m.moderateAntigravity(auth, opts); result.Blocked {
+		return result
+	}
+	if m.resolver == nil || m.evaluator == nil {
 		return coreauth.RequestModerationResult{}
 	}
 	// Two tenants can be involved. tenantID sent the request and owns the record of

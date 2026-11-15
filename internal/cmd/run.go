@@ -59,6 +59,7 @@ func StartService(cfg *config.Config, configPath string, localPassword string) {
 	defer stopClusterAuth()
 
 	moderator := contentmoderation.NewRequestModerator(contentmoderation.NewStore(usage.RuntimeDB()), contentmoderation.NewEvaluator(nil))
+	moderator.SetAntigravityCodingFilter(cfg.AntigravityCodingFilter.Enabled, cfg.AntigravityCodingFilter.Mode, cfg.AntigravityCodingFilter.UseDefaultKeywords, cfg.AntigravityCodingFilter.CustomMappings)
 	contentmoderation.SetRuntime(moderator)
 	builder := cliproxy.NewBuilder().
 		WithConfig(cfg).
@@ -125,6 +126,7 @@ func StartServiceBackground(cfg *config.Config, configPath string, localPassword
 	}
 
 	moderator := contentmoderation.NewRequestModerator(contentmoderation.NewStore(usage.RuntimeDB()), contentmoderation.NewEvaluator(nil))
+	moderator.SetAntigravityCodingFilter(cfg.AntigravityCodingFilter.Enabled, cfg.AntigravityCodingFilter.Mode, cfg.AntigravityCodingFilter.UseDefaultKeywords, cfg.AntigravityCodingFilter.CustomMappings)
 	contentmoderation.SetRuntime(moderator)
 	builder := cliproxy.NewBuilder().
 		WithConfig(cfg).

@@ -133,6 +133,10 @@ type Config struct {
 	// Antigravity configures provider-wide Antigravity request behavior.
 	Antigravity AntigravityConfig `yaml:"antigravity" json:"antigravity"`
 
+	// AntigravityCodingFilter controls the native compatibility integration for
+	// hosts that cannot load CLIProxyAPI v7 dynamic plugins.
+	AntigravityCodingFilter AntigravityCodingFilterConfig `yaml:"antigravity-coding-filter,omitempty" json:"antigravity-coding-filter,omitempty"`
+
 	// Routing controls credential selection behavior.
 	Routing RoutingConfig `yaml:"routing" json:"routing"`
 

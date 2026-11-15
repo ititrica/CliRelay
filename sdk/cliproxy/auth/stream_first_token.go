@@ -74,12 +74,16 @@ func (s executionService) executeStreamAttempt(candidate *mixedExecutionCandidat
 	if errEgress := s.egressRefusal(candidate); errEgress != nil {
 		return nil, errEgress
 	}
-	timeout := s.manager.streamGuardsFor(scope.opts.Metadata).firstTokenTimeout
+	opts := candidate.execOpts
+	if opts.Metadata == nil {
+		opts = scope.opts
+	}
+	timeout := s.manager.streamGuardsFor(opts.Metadata).firstTokenTimeout
 	if timeout <= 0 {
-		return candidate.executor.ExecuteStream(candidate.execCtx, candidate.auth, candidate.execReq, scope.opts)
+		return candidate.executor.ExecuteStream(candidate.execCtx, candidate.auth, candidate.execReq, opts)
 	}
 	watchdog := startFirstTokenWatchdog(candidate.execCtx, timeout)
-	result, err := candidate.executor.ExecuteStream(watchdog.ctx, candidate.auth, candidate.execReq, scope.opts)
+	result, err := candidate.executor.ExecuteStream(watchdog.ctx, candidate.auth, candidate.execReq, opts)
 	if err != nil || result == nil {
 		watchdog.release()
 		if watchdog.timedOut() && candidate.execCtx.Err() == nil {

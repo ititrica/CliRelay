@@ -31,6 +31,14 @@ type RequestModerator interface {
 	Moderate(ctx context.Context, auth *Auth, opts cliproxyexecutor.Options) RequestModerationResult
 }
 
+// RequestModeratorRewriter is an optional second phase for a moderator that
+// needs the selected provider before rewriting a request. It runs after
+// RequestModerator and before the executor, so a rewrite can remain scoped to
+// one provider during failover.
+type RequestModeratorRewriter interface {
+	RewriteRequest(ctx context.Context, auth *Auth, req cliproxyexecutor.Request, opts cliproxyexecutor.Options) RequestGuardResult
+}
+
 func (m *Manager) SetRequestModerator(moderator RequestModerator) {
 	if m == nil {
 		return
@@ -63,6 +71,37 @@ func (m *Manager) moderateRequest(ctx context.Context, auth *Auth, opts cliproxy
 		message = "Your request was blocked by the content moderation policy."
 	}
 	return &Error{Code: contentPolicyViolationCode, Message: message, HTTPStatus: status}
+}
+
+func (m *Manager) rewriteRequest(ctx context.Context, auth *Auth, req cliproxyexecutor.Request, opts cliproxyexecutor.Options) (cliproxyexecutor.Request, cliproxyexecutor.Options, error) {
+	if m == nil {
+		return req, opts, nil
+	}
+	m.mu.RLock()
+	rewriter, ok := m.requestModerator.(RequestModeratorRewriter)
+	m.mu.RUnlock()
+	if !ok || rewriter == nil {
+		return req, opts, nil
+	}
+	result := rewriter.RewriteRequest(ctx, auth, req, opts)
+	if result.Blocked {
+		status := result.HTTPStatus
+		if status < 400 || status > 599 {
+			status = http.StatusForbidden
+		}
+		message := strings.TrimSpace(result.Message)
+		if message == "" {
+			message = "Your request was blocked by the content moderation policy."
+		}
+		return req, opts, &Error{Code: contentPolicyViolationCode, Message: message, HTTPStatus: status}
+	}
+	if result.OriginalRequest != nil {
+		opts.OriginalRequest = result.OriginalRequest
+	}
+	if result.Payload != nil {
+		req.Payload = result.Payload
+	}
+	return req, opts, nil
 }
 
 func isContentPolicyViolation(err error) bool {
