@@ -303,14 +303,24 @@ quota-exceeded:
   switch-preview-model: true # Whether to automatically switch to a preview model when a quota is exceeded
 
 # Antigravity provider behavior.
-# By default, CliRelay automatically obfuscates known upstream-filtering keywords (like Claude Agent SDK, Hermes Agent, Nous Research)
-# with zero-width spaces in system instructions to prevent false 429 RESOURCE_EXHAUSTED errors.
-# You can explicitly configure additional sensitive words or override the list:
+# By default, CliRelay automatically obfuscates verified upstream-filtering
+# fingerprints with zero-width spaces in Antigravity system instructions to
+# prevent false 429 RESOURCE_EXHAUSTED errors. User messages, tool schemas and
+# tool results are left unchanged. Configured phrases are additive to the
+# built-ins, so adding a client-specific fingerprint does not disable the
+# verified defaults:
 # antigravity:
-#   sensitive-words:             # optional: words to obfuscate with zero-width characters in system instructions
+#   sensitive-words:
 #     - "Claude Agent SDK"
 #     - "Hermes Agent"
 #     - "Nous Research"
+#     - "system-conventions"
+#     - "system_conventions"
+#     - "system-directive"
+#     - "system_directive"
+#     - "RFC 2119"
+#     # Example for a client-specific agent identity:
+#     # - "DeepSeek Harness"
 
 # Routing strategy for selecting credentials when multiple match.
 # The first start stores this section in the database and removes it from this

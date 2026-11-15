@@ -27,7 +27,11 @@ func (e *AntigravityExecutor) newAntigravityExecutionContext(
 func (e *AntigravityExecutor) obfuscateSensitiveWords(payload []byte) []byte {
 	words := DefaultAntigravitySensitiveWords()
 	if e != nil && e.cfg != nil && len(e.cfg.Antigravity.SensitiveWords) > 0 {
-		words = e.cfg.Antigravity.SensitiveWords
+		// Keep the verified built-ins active and add operator-specific phrases.
+		// A configured list is intentionally additive: upstream fingerprints can
+		// change, and replacing the built-ins would silently re-enable known false
+		// 429s whenever an operator adds one client-specific phrase.
+		words = append(words, e.cfg.Antigravity.SensitiveWords...)
 	}
 	if len(words) == 0 {
 		return payload

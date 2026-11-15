@@ -32,15 +32,33 @@ func TestAntigravitySensitiveWordsObfuscatesSystemInstructionOnly(t *testing.T) 
 }
 
 func TestAntigravityDefaultSensitiveWordsObfuscatesKnownKeywords(t *testing.T) {
-	// With empty config, default keywords (Claude Agent SDK, Hermes Agent, Nous Research) should apply automatically
+	// Verified upstream fingerprints should apply automatically with empty config.
 	executor := NewAntigravityExecutor(&config.Config{})
-	payload := []byte(`{"request":{"systemInstruction":{"parts":[{"text":"You are Hermes Agent, an intelligent AI assistant created by Nous Research with Claude Agent SDK."}]}}}`)
+	payload := []byte(`{"request":{"systemInstruction":{"parts":[{"text":"You are Hermes Agent, an intelligent AI assistant created by Nous Research with Claude Agent SDK. <system-conventions> RFC 2119 </system-conventions> system_directive"}]},"contents":[{"role":"user","parts":[{"text":"Hermes Agent, Claude Agent SDK, RFC 2119"}]}]}}`)
 
 	got := executor.obfuscateSensitiveWords(payload)
 	systemText := gjson.GetBytes(got, "request.systemInstruction.parts.0.text").String()
-	want := "You are H\u200Bermes Agent, an intelligent AI assistant created by N\u200Bous Research with C\u200Blaude Agent SDK."
-	if systemText != want {
-		t.Fatalf("system instruction = %q, want %q", systemText, want)
+	for _, phrase := range []string{"Hermes Agent", "Nous Research", "Claude Agent SDK", "system-conventions", "RFC 2119", "system_directive"} {
+		if strings.Contains(systemText, phrase) {
+			t.Fatalf("system instruction retained raw fingerprint %q: %q", phrase, systemText)
+		}
+	}
+	if contentText := gjson.GetBytes(got, "request.contents.0.parts.0.text").String(); contentText != "Hermes Agent, Claude Agent SDK, RFC 2119" {
+		t.Fatalf("user content was changed: %q", contentText)
+	}
+}
+
+func TestAntigravityConfiguredSensitiveWordsAreAdditive(t *testing.T) {
+	executor := NewAntigravityExecutor(&config.Config{
+		Antigravity: config.AntigravityConfig{SensitiveWords: []string{"DeepSeek Harness"}},
+	})
+	payload := []byte(`{"request":{"systemInstruction":{"parts":[{"text":"DeepSeek Harness and Claude Agent SDK"}]}}}`)
+	got := executor.obfuscateSensitiveWords(payload)
+	systemText := gjson.GetBytes(got, "request.systemInstruction.parts.0.text").String()
+	for _, phrase := range []string{"DeepSeek Harness", "Claude Agent SDK"} {
+		if strings.Contains(systemText, phrase) {
+			t.Fatalf("system instruction retained raw fingerprint %q: %q", phrase, systemText)
+		}
 	}
 }
 

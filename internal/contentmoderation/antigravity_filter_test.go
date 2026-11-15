@@ -38,3 +38,22 @@ func TestAntigravityCodingFilterRewritePreservesUserMessage(t *testing.T) {
 		t.Fatalf("rewrite changed the wrong fields: %s", text)
 	}
 }
+
+func TestAntigravityCodingFilterRewriteSupportsClientSpecificAgentIdentity(t *testing.T) {
+	moderator := NewRequestModerator(nil, nil)
+	moderator.SetAntigravityCodingFilter(true, "rewrite", true, map[string]string{
+		"DeepSeek Harness": "Antigravity",
+	})
+	body := []byte(`{"systemInstruction":{"parts":[{"text":"You are an AI agent powered by DeepSeek Harness."}]},"contents":[{"role":"user","parts":[{"text":"DeepSeek Harness is part of the user text."}]}]}`)
+	rewritten := moderator.RewriteRequest(context.Background(), &coreauth.Auth{Provider: "antigravity"}, cliproxyexecutor.Request{Payload: body}, cliproxyexecutor.Options{OriginalRequest: body})
+	if rewritten.Blocked || len(rewritten.Payload) == 0 {
+		t.Fatalf("rewrite result = %+v, want payload", rewritten)
+	}
+	text := string(rewritten.Payload)
+	if !strings.Contains(text, "powered by Antigravity") {
+		t.Fatalf("client identity was not rewritten: %s", text)
+	}
+	if !strings.Contains(text, "DeepSeek Harness is part of the user text") {
+		t.Fatalf("user content was changed: %s", text)
+	}
+}

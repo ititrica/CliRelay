@@ -38,14 +38,21 @@ const (
 	systemInstruction       = "You are Antigravity, a powerful agentic AI coding assistant designed by the Google Deepmind team working on Advanced Agentic Coding.You are pair programming with a USER to solve their coding task. The task may require creating a new codebase, modifying or debugging an existing codebase, or simply answering a question.**Absolute paths only****Proactiveness**"
 )
 
-// DefaultAntigravitySensitiveWords returns the built-in list of sensitive words/phrases
-// to obfuscate with zero-width characters in Antigravity system instructions.
-// This mitigates upstream keyword-triggered 429 RESOURCE_EXHAUSTED errors.
+// DefaultAntigravitySensitiveWords returns the built-in list of verified
+// upstream-filtering fingerprints to obfuscate with zero-width characters in
+// Antigravity system instructions. The upstream has returned misleading 429
+// RESOURCE_EXHAUSTED responses for these literal coding-agent conventions even
+// when the credential has available quota.
 func DefaultAntigravitySensitiveWords() []string {
 	return []string{
 		"Claude Agent SDK",
 		"Hermes Agent",
 		"Nous Research",
+		"system-conventions",
+		"system_conventions",
+		"system-directive",
+		"system_directive",
+		"RFC 2119",
 	}
 }
 
