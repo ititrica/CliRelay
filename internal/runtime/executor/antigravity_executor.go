@@ -82,6 +82,16 @@ func (e *AntigravityExecutor) PrepareRequest(req *http.Request, auth *cliproxyau
 		return statusErr{code: http.StatusUnauthorized, msg: "missing access token"}
 	}
 	req.Header.Set("Authorization", "Bearer "+token)
+	if req.Header.Get("Content-Type") == "" && req.Body != nil {
+		req.Header.Set("Content-Type", "application/json")
+	}
+	if req.Header.Get("Accept") == "" {
+		req.Header.Set("Accept", "application/json")
+	}
+	if req.Header.Get("User-Agent") == "" {
+		req.Header.Set("User-Agent", resolveUserAgent(auth))
+	}
+	e.applyAntigravityIdentityFingerprint(req.Context(), auth, req.Header)
 	return nil
 }
 

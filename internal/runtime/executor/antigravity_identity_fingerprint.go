@@ -40,3 +40,18 @@ func applyAntigravityIdentityFingerprintHeaders(headers http.Header, fp config.A
 		}
 	}
 }
+
+// applyAntigravityIdentityFingerprint applies the same Hub identity to any
+// request that enters the executor through the generic transport interface.
+// Generation and count-token requests are built locally, but model discovery
+// and callers of Manager.NewHttpRequest use PrepareRequest instead. Keeping the
+// operation here prevents those less common paths from going upstream with a
+// missing User-Agent, X-Goog-Api-Client, or Client-Metadata header.
+func (e *AntigravityExecutor) applyAntigravityIdentityFingerprint(ctx context.Context, auth *cliproxyauth.Auth, headers http.Header) {
+	if e == nil || e.cfg == nil || headers == nil {
+		return
+	}
+	if fp, _, enabled := antigravityIdentityFingerprint(e.cfg, auth, ctx); enabled {
+		applyAntigravityIdentityFingerprintHeaders(headers, fp)
+	}
+}

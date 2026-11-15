@@ -2,8 +2,11 @@ package executor
 
 import (
 	"context"
+	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/gin-gonic/gin"
 
@@ -12,6 +15,41 @@ import (
 	"github.com/router-for-me/CLIProxyAPI/v6/internal/util"
 	cliproxyauth "github.com/router-for-me/CLIProxyAPI/v6/sdk/cliproxy/auth"
 )
+
+func TestAntigravityPrepareRequestFillsEmptyHeadersWithHubIdentity(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	executor := &AntigravityExecutor{cfg: newAntigravityFingerprintConfig(true)}
+	auth := &cliproxyauth.Auth{
+		ID:       "account-under-test",
+		Metadata: map[string]any{
+			"project_id":  "test-project",
+			"access_token": "token",
+			"expires_in":  int64(3600),
+			"timestamp":   time.Now().UnixMilli(),
+		},
+	}
+	req := httptest.NewRequest(http.MethodPost, "https://example.com/v1internal:generateContent", strings.NewReader(`{"request":{}}`))
+	req.Header = make(http.Header)
+
+	if err := executor.PrepareRequest(req, auth); err != nil {
+		t.Fatalf("PrepareRequest error: %v", err)
+	}
+	if got := req.Header.Get("Content-Type"); got != "application/json" {
+		t.Errorf("Content-Type = %q, want application/json", got)
+	}
+	if got := req.Header.Get("Accept"); got != "application/json" {
+		t.Errorf("Accept = %q, want application/json", got)
+	}
+	if got := req.Header.Get("User-Agent"); got != antigravityauth.ClientUserAgent {
+		t.Errorf("User-Agent = %q, want %q", got, antigravityauth.ClientUserAgent)
+	}
+	if got := req.Header.Get("X-Goog-Api-Client"); got != antigravityauth.APIClient {
+		t.Errorf("X-Goog-Api-Client = %q, want %q", got, antigravityauth.APIClient)
+	}
+	if got := req.Header.Get("Client-Metadata"); got != antigravityauth.ClientMetadata {
+		t.Errorf("Client-Metadata = %q, want %q", got, antigravityauth.ClientMetadata)
+	}
+}
 
 // The fingerprint default is a third copy of the client identity, and it is the
 // copy that overwrites the outgoing User-Agent. Pinned to the shared constant so

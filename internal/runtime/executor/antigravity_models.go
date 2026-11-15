@@ -134,6 +134,8 @@ func DiscoverAntigravityModels(ctx context.Context, auth *cliproxyauth.Auth, cfg
 		httpReq.Header.Set("Content-Type", "application/json")
 		httpReq.Header.Set("Authorization", "Bearer "+token)
 		httpReq.Header.Set("User-Agent", resolveUserAgent(auth))
+		exec.applyAntigravityIdentityFingerprint(ctx, auth, httpReq.Header)
+		httpReq.Header.Set("Accept", "application/json")
 		if host := resolveHost(baseURL); host != "" {
 			httpReq.Host = host
 		}

@@ -124,14 +124,7 @@ func (e *AntigravityExecutor) buildRequest(ctx context.Context, auth *cliproxyau
 	httpReq.Header.Set("Content-Type", "application/json")
 	httpReq.Header.Set("Authorization", "Bearer "+token)
 	httpReq.Header.Set("User-Agent", resolveUserAgent(auth))
-	if e != nil && e.cfg != nil {
-		// Only apply the fingerprint when the feature is on: with it off the
-		// resolver still hands back the built-in template, and applying that
-		// would overwrite an identity the credential carries of its own.
-		if fp, _, enabled := antigravityIdentityFingerprint(e.cfg, auth, ctx); enabled {
-			applyAntigravityIdentityFingerprintHeaders(httpReq.Header, fp)
-		}
-	}
+	e.applyAntigravityIdentityFingerprint(ctx, auth, httpReq.Header)
 	if stream {
 		httpReq.Header.Set("Accept", "text/event-stream")
 	} else {
@@ -168,11 +161,7 @@ func (e *AntigravityExecutor) buildCountTokensRequest(ctx context.Context, auth 
 	httpReq.Header.Set("Content-Type", "application/json")
 	httpReq.Header.Set("Authorization", "Bearer "+token)
 	httpReq.Header.Set("User-Agent", resolveUserAgent(auth))
-	if e != nil && e.cfg != nil {
-		if fp, _, enabled := antigravityIdentityFingerprint(e.cfg, auth, ctx); enabled {
-			applyAntigravityIdentityFingerprintHeaders(httpReq.Header, fp)
-		}
-	}
+	e.applyAntigravityIdentityFingerprint(ctx, auth, httpReq.Header)
 	httpReq.Header.Set("Accept", "application/json")
 	if host := resolveHost(base); host != "" {
 		httpReq.Host = host
