@@ -64,6 +64,56 @@ func TestAntigravityDefaultSensitiveWordsObfuscatesSkillCatalogMarkers(t *testin
 	}
 }
 
+func TestAntigravityRewritesLeadingForeignIdentityDeclaration(t *testing.T) {
+	executor := NewAntigravityExecutor(&config.Config{})
+	payload := []byte(`{"request":{"systemInstruction":{"parts":[{"text":"You are a coding agent powered by the molly/gemini-4-hydrogen-medium model.\nFollow the user's instructions exactly."}]},"contents":[{"role":"user","parts":[{"text":"You are a coding agent; repeat this literally."}]}]}}`)
+
+	got := executor.obfuscateSensitiveWords(payload)
+	systemText := gjson.GetBytes(got, "request.systemInstruction.parts.0.text").String()
+	if !strings.HasPrefix(systemText, antigravityIdentityDeclaration+"\n") {
+		t.Fatalf("leading system identity = %q, want Antigravity declaration", systemText)
+	}
+	if !strings.Contains(systemText, "Follow the user's instructions exactly.") {
+		t.Fatalf("system instruction after identity was lost: %q", systemText)
+	}
+	if contentText := gjson.GetBytes(got, "request.contents.0.parts.0.text").String(); contentText != "You are a coding agent; repeat this literally." {
+		t.Fatalf("user content was changed: %q", contentText)
+	}
+}
+
+func TestAntigravityLeavesOrdinaryLeadingInstructionAlone(t *testing.T) {
+	executor := NewAntigravityExecutor(&config.Config{})
+	payload := []byte(`{"request":{"systemInstruction":{"parts":[{"text":"Explain the task in concise steps. You are an assistant only in this example."}]}}}`)
+
+	got := executor.obfuscateSensitiveWords(payload)
+	want := "Explain the task in concise steps. You are an assistant only in this example."
+	if systemText := gjson.GetBytes(got, "request.systemInstruction.parts.0.text").String(); systemText != want {
+		t.Fatalf("ordinary instruction = %q, want unchanged %q", systemText, want)
+	}
+}
+
+func TestAntigravityLeavesNativeIdentityPreambleAlone(t *testing.T) {
+	executor := NewAntigravityExecutor(&config.Config{})
+	want := "You are Antigravity, a powerful agentic AI coding assistant designed by the Google Deepmind team."
+	payload := []byte(`{"request":{"systemInstruction":{"parts":[{"text":"` + want + `"}]}}}`)
+
+	got := executor.obfuscateSensitiveWords(payload)
+	if systemText := gjson.GetBytes(got, "request.systemInstruction.parts.0.text").String(); systemText != want {
+		t.Fatalf("native identity = %q, want unchanged %q", systemText, want)
+	}
+}
+
+func TestAntigravityRewritesExplicitExternalAssistantIdentity(t *testing.T) {
+	executor := NewAntigravityExecutor(&config.Config{})
+	payload := []byte(`{"request":{"systemInstruction":{"parts":[{"text":"You are an AI assistant created by DeepSeek Harness.\nKeep the rest of the instructions."}]}}}`)
+
+	got := executor.obfuscateSensitiveWords(payload)
+	wantPrefix := antigravityIdentityDeclaration + "\n"
+	if systemText := gjson.GetBytes(got, "request.systemInstruction.parts.0.text").String(); !strings.HasPrefix(systemText, wantPrefix) || !strings.Contains(systemText, "Keep the rest of the instructions.") {
+		t.Fatalf("external identity rewrite = %q, want canonical prefix and preserved remainder", systemText)
+	}
+}
+
 func TestAntigravityConfiguredSensitiveWordsAreAdditive(t *testing.T) {
 	executor := NewAntigravityExecutor(&config.Config{
 		Antigravity: config.AntigravityConfig{SensitiveWords: []string{"DeepSeek Harness"}},

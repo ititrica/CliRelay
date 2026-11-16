@@ -13,6 +13,17 @@ import (
 // zeroWidthSpace is the Unicode zero-width space character used for obfuscation.
 const zeroWidthSpace = "\u200B"
 
+// antigravityIdentityDeclarationRe matches a leading, explicit foreign
+// coding-agent identity declaration. The upstream filter is known to reject
+// names and complete sentences from other coding clients, but a generic
+// "You are ..." prefix is not enough evidence: ordinary prompts and the
+// native Antigravity preamble use that shape too. Require either a coding,
+// software, or terminal agent/assistant label, or an explicit external
+// identity marker such as "powered by" or "built on".
+var antigravityIdentityDeclarationRe = regexp.MustCompile(`(?is)^(\s*(?:<[^>]+>\s*)*)(?:(?:you are|you're)\s+(?:an?\s+)?(?:ai\s+)?(?:coding|software|terminal)\s+(?:agent|assistant)(?:\s+(?:powered by|built on|running on|from|using|for)\s+[^.!?\n]{1,240})?|(?:you are|you're)\s+(?:an?\s+)?ai\s+(?:agent|assistant)\s+(?:powered by|built on|running on|from|using|for|created by)\s+[^.!?\n]{1,240})(?:[.!?]|$)`)
+
+const antigravityIdentityDeclaration = "You are Antigravity, an AI coding assistant."
+
 // SensitiveWordMatcher holds the compiled regex for matching sensitive words.
 type SensitiveWordMatcher struct {
 	regex *regexp.Regexp
@@ -81,6 +92,13 @@ func (m *SensitiveWordMatcher) obfuscateText(text string) string {
 	return m.regex.ReplaceAllStringFunc(text, obfuscateWord)
 }
 
+func rewriteAntigravityIdentityDeclaration(text string) string {
+	if !antigravityIdentityDeclarationRe.MatchString(text) {
+		return text
+	}
+	return antigravityIdentityDeclarationRe.ReplaceAllString(text, `${1}`+antigravityIdentityDeclaration)
+}
+
 // obfuscateSensitiveWords processes the payload and obfuscates sensitive words
 // in system blocks and message content.
 func obfuscateSensitiveWords(payload []byte, matcher *SensitiveWordMatcher) []byte {
@@ -99,10 +117,6 @@ func obfuscateSensitiveWords(payload []byte, matcher *SensitiveWordMatcher) []by
 
 // obfuscateSensitiveWordsInSystemInstruction obfuscates sensitive words in an Antigravity system instruction.
 func obfuscateSensitiveWordsInSystemInstruction(payload []byte, matcher *SensitiveWordMatcher) []byte {
-	if matcher == nil || matcher.regex == nil {
-		return payload
-	}
-
 	// Translation may produce either the top-level Gemini shape or the
 	// Antigravity `request` wrapper. Handle both; the wrapper is added after
 	// translation in some execution paths.
@@ -118,8 +132,12 @@ func obfuscateSensitiveWordsInSystemInstruction(payload []byte, matcher *Sensiti
 		}
 		if instruction.Type == gjson.String {
 			text := instruction.String()
-			if obfuscated := matcher.obfuscateText(text); obfuscated != text {
-				payload, _ = sjson.SetBytes(payload, path, obfuscated)
+			rewritten := rewriteAntigravityIdentityDeclaration(text)
+			if matcher != nil && matcher.regex != nil {
+				rewritten = matcher.obfuscateText(rewritten)
+			}
+			if rewritten != text {
+				payload, _ = sjson.SetBytes(payload, path, rewritten)
 			}
 			continue
 		}
@@ -133,8 +151,12 @@ func obfuscateSensitiveWordsInSystemInstruction(payload []byte, matcher *Sensiti
 				return true
 			}
 			text := part.Get("text").String()
-			if obfuscated := matcher.obfuscateText(text); obfuscated != text {
-				payload, _ = sjson.SetBytes(payload, path+".parts."+key.String()+".text", obfuscated)
+			rewritten := rewriteAntigravityIdentityDeclaration(text)
+			if matcher != nil && matcher.regex != nil {
+				rewritten = matcher.obfuscateText(rewritten)
+			}
+			if rewritten != text {
+				payload, _ = sjson.SetBytes(payload, path+".parts."+key.String()+".text", rewritten)
 			}
 			return true
 		})
