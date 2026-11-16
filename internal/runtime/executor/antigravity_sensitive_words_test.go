@@ -64,6 +64,33 @@ func TestAntigravityDefaultSensitiveWordsObfuscatesSkillCatalogMarkers(t *testin
 	}
 }
 
+func TestAntigravityRemovesSkillCatalogFromSystemInstructionOnly(t *testing.T) {
+	executor := NewAntigravityExecutor(&config.Config{})
+	payload := []byte(`{"request":{"systemInstruction":{"parts":[{"text":"Before\n<available_skills>\nUse a skill when the task matches its description.\n- visualize\n</available_skills>\nAfter"}]},"contents":[{"role":"user","parts":[{"text":"available_skills stays in user content"}]}]}}`)
+
+	got := executor.obfuscateSensitiveWords(payload)
+	systemText := gjson.GetBytes(got, "request.systemInstruction.parts.0.text").String()
+	if strings.Contains(systemText, "available_skills") || strings.Contains(systemText, "visualize") {
+		t.Fatalf("system instruction retained skill catalog: %q", systemText)
+	}
+	if !strings.Contains(systemText, "Before") || !strings.Contains(systemText, "After") {
+		t.Fatalf("surrounding system instruction was lost: %q", systemText)
+	}
+	if contentText := gjson.GetBytes(got, "request.contents.0.parts.0.text").String(); contentText != "available_skills stays in user content" {
+		t.Fatalf("user content changed: %q", contentText)
+	}
+}
+
+func TestAntigravityRemovesEmptySkillCatalogInstruction(t *testing.T) {
+	executor := NewAntigravityExecutor(&config.Config{})
+	payload := []byte(`{"request":{"systemInstruction":{"parts":[{"text":"<available_skills>Use a skill.</available_skills>"}]}}}`)
+
+	got := executor.obfuscateSensitiveWords(payload)
+	if text := gjson.GetBytes(got, "request.systemInstruction.parts.0.text").String(); text != "" {
+		t.Fatalf("empty catalog should leave an empty system part, got %q", text)
+	}
+}
+
 func TestAntigravityRewritesLeadingForeignIdentityDeclaration(t *testing.T) {
 	executor := NewAntigravityExecutor(&config.Config{})
 	payload := []byte(`{"request":{"systemInstruction":{"parts":[{"text":"You are a coding agent powered by the molly/gemini-4-hydrogen-medium model.\nFollow the user's instructions exactly."}]},"contents":[{"role":"user","parts":[{"text":"You are a coding agent; repeat this literally."}]}]}}`)

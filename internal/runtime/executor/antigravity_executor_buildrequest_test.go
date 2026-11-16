@@ -72,7 +72,7 @@ func TestAntigravityBuildRequestObfuscatesFinalWrappedSystemInstruction(t *testi
 	executor := NewAntigravityExecutor(&config.Config{})
 	auth := &cliproxyauth.Auth{Metadata: map[string]any{"project_id": "test-project"}}
 	payload := []byte(`{
-		"systemInstruction": {"parts": [{"text": "<available_skills> Use a skill when the task matches its description."}]},
+		"systemInstruction": {"parts": [{"text": "<available_skills> Use a skill when the task matches its description. </available_skills>"}]},
 		"contents": [{"role": "user", "parts": [{"text": "hello"}]}]
 	}`)
 	req, body, err := executor.buildRequest(context.Background(), auth, "token", "gemini-4-hydrogen-medium", payload, true, "", "https://example.com", 0)
@@ -82,8 +82,8 @@ func TestAntigravityBuildRequestObfuscatesFinalWrappedSystemInstruction(t *testi
 	if got := string(body); strings.Contains(got, "available_skills") || strings.Contains(got, "Use a skill") {
 		t.Fatalf("final upstream body retained skill fingerprint: %s", got)
 	}
-	if got := gjson.GetBytes(body, "request.systemInstruction.parts.0.text").String(); !strings.Contains(got, "a\u200Bvailable_skills") {
-		t.Fatalf("final wrapped system instruction was not obfuscated: %q", got)
+	if got := gjson.GetBytes(body, "request.systemInstruction.parts.0.text").String(); got != "" {
+		t.Fatalf("final wrapped system instruction should be empty after catalog removal: %q", got)
 	}
 	if got := gjson.GetBytes(body, "request.contents.0.parts.0.text").String(); got != "hello" {
 		t.Fatalf("user content changed: %q", got)

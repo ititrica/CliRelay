@@ -27,6 +27,14 @@ var antigravityIdentityDeclarationRe = regexp.MustCompile(`(?is)^(\s*(?:<[^>]+>\
 // rather than replacing the whole identity with a synthetic preamble.
 var antigravityOpenClawIdentityRe = regexp.MustCompile(`(?is)^(\s*(?:<[^>]+>\s*)*)you are a personal assistant running inside openclaw\.`)
 
+// antigravitySkillCatalogRe matches the skill-discovery block that coding
+// clients prepend to their system prompt. Antigravity normalizes zero-width
+// obfuscation and still rejects the catalog's surrounding wording as a client
+// fingerprint, so the complete block is removed from the outbound
+// systemInstruction. User messages, tool declarations and tool results are
+// deliberately outside this rewrite.
+var antigravitySkillCatalogRe = regexp.MustCompile(`(?is)<available_skills>.*?</available_skills>`)
+
 const antigravityIdentityDeclaration = "You are Antigravity, an AI coding assistant."
 
 // SensitiveWordMatcher holds the compiled regex for matching sensitive words.
@@ -107,6 +115,17 @@ func rewriteAntigravityIdentityDeclaration(text string) string {
 	return antigravityIdentityDeclarationRe.ReplaceAllString(text, `${1}`+antigravityIdentityDeclaration)
 }
 
+func stripAntigravitySkillCatalog(text string) string {
+	rewritten := antigravitySkillCatalogRe.ReplaceAllString(text, "")
+	if rewritten == text {
+		return text
+	}
+	if strings.TrimSpace(rewritten) == "" {
+		return ""
+	}
+	return rewritten
+}
+
 // obfuscateSensitiveWords processes the payload and obfuscates sensitive words
 // in system blocks and message content.
 func obfuscateSensitiveWords(payload []byte, matcher *SensitiveWordMatcher) []byte {
@@ -140,7 +159,8 @@ func obfuscateSensitiveWordsInSystemInstruction(payload []byte, matcher *Sensiti
 		}
 		if instruction.Type == gjson.String {
 			text := instruction.String()
-			rewritten := rewriteAntigravityIdentityDeclaration(text)
+			rewritten := stripAntigravitySkillCatalog(text)
+			rewritten = rewriteAntigravityIdentityDeclaration(rewritten)
 			if matcher != nil && matcher.regex != nil {
 				rewritten = matcher.obfuscateText(rewritten)
 			}
@@ -159,7 +179,8 @@ func obfuscateSensitiveWordsInSystemInstruction(payload []byte, matcher *Sensiti
 				return true
 			}
 			text := part.Get("text").String()
-			rewritten := rewriteAntigravityIdentityDeclaration(text)
+			rewritten := stripAntigravitySkillCatalog(text)
+			rewritten = rewriteAntigravityIdentityDeclaration(rewritten)
 			if matcher != nil && matcher.regex != nil {
 				rewritten = matcher.obfuscateText(rewritten)
 			}
