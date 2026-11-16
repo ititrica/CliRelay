@@ -1,9 +1,11 @@
 package executor
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"io"
+	"strings"
 	"testing"
 
 	antigravityauth "github.com/router-for-me/CLIProxyAPI/v6/internal/auth/antigravity"
@@ -63,6 +65,33 @@ func TestAntigravityBuildRequestDoesNotAddSyntheticPromptForGeminiFamily(t *test
 	}
 	if got := parts[0].Get("text").String(); got != "You are a foreign coding agent." {
 		t.Fatalf("original system instruction = %q, want it preserved", got)
+	}
+}
+
+func TestAntigravityBuildRequestObfuscatesFinalWrappedSystemInstruction(t *testing.T) {
+	executor := NewAntigravityExecutor(&config.Config{})
+	auth := &cliproxyauth.Auth{Metadata: map[string]any{"project_id": "test-project"}}
+	payload := []byte(`{
+		"systemInstruction": {"parts": [{"text": "<available_skills> Use a skill when the task matches its description."}]},
+		"contents": [{"role": "user", "parts": [{"text": "hello"}]}]
+	}`)
+	req, body, err := executor.buildRequest(context.Background(), auth, "token", "gemini-4-hydrogen-medium", payload, true, "", "https://example.com", 0)
+	if err != nil {
+		t.Fatalf("buildRequest error: %v", err)
+	}
+	if got := string(body); strings.Contains(got, "available_skills") || strings.Contains(got, "Use a skill") {
+		t.Fatalf("final upstream body retained skill fingerprint: %s", got)
+	}
+	if got := gjson.GetBytes(body, "request.systemInstruction.parts.0.text").String(); !strings.Contains(got, "a\u200Bvailable_skills") {
+		t.Fatalf("final wrapped system instruction was not obfuscated: %q", got)
+	}
+	if got := gjson.GetBytes(body, "request.contents.0.parts.0.text").String(); got != "hello" {
+		t.Fatalf("user content changed: %q", got)
+	}
+	if got, err := io.ReadAll(req.Body); err != nil {
+		t.Fatalf("read request body: %v", err)
+	} else if !bytes.Equal(got, body) {
+		t.Fatalf("request body differs from returned body: %s vs %s", got, body)
 	}
 }
 

@@ -86,6 +86,19 @@ func (e *AntigravityExecutor) PrepareRequest(req *http.Request, auth *cliproxyau
 	if req == nil {
 		return nil
 	}
+	// Manager.NewHttpRequest may receive headers copied from a foreign client.
+	// Antigravity identity is selected from the OAuth credential and rebuilt
+	// below; forwarding the caller's User-Agent, Google client metadata, or
+	// other provider headers would create a hybrid identity. Authentication for
+	// the relay has already been resolved before this method is called, so it is
+	// safe to discard the untrusted header set at this final upstream boundary.
+	if req.Header == nil {
+		req.Header = make(http.Header)
+	} else {
+		for name := range req.Header {
+			req.Header.Del(name)
+		}
+	}
 	token, _, errToken := e.ensureAccessToken(req.Context(), auth)
 	if errToken != nil {
 		return errToken

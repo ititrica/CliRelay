@@ -20,12 +20,12 @@ func TestAntigravityPrepareRequestFillsEmptyHeadersWithHubIdentity(t *testing.T)
 	gin.SetMode(gin.TestMode)
 	executor := &AntigravityExecutor{cfg: newAntigravityFingerprintConfig(true)}
 	auth := &cliproxyauth.Auth{
-		ID:       "account-under-test",
+		ID: "account-under-test",
 		Metadata: map[string]any{
-			"project_id":  "test-project",
+			"project_id":   "test-project",
 			"access_token": "token",
-			"expires_in":  int64(3600),
-			"timestamp":   time.Now().UnixMilli(),
+			"expires_in":   int64(3600),
+			"timestamp":    time.Now().UnixMilli(),
 		},
 	}
 	req := httptest.NewRequest(http.MethodPost, "https://example.com/v1internal:generateContent", strings.NewReader(`{"request":{}}`))
@@ -48,6 +48,40 @@ func TestAntigravityPrepareRequestFillsEmptyHeadersWithHubIdentity(t *testing.T)
 	}
 	if got := req.Header.Get("Client-Metadata"); got != antigravityauth.ClientMetadata {
 		t.Errorf("Client-Metadata = %q, want %q", got, antigravityauth.ClientMetadata)
+	}
+}
+
+func TestAntigravityPrepareRequestDropsForeignHeaders(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	executor := &AntigravityExecutor{cfg: newAntigravityFingerprintConfig(true)}
+	auth := &cliproxyauth.Auth{
+		ID: "account-under-test",
+		Metadata: map[string]any{
+			"project_id":   "test-project",
+			"access_token": "token",
+			"expires_in":   int64(3600),
+			"timestamp":    time.Now().UnixMilli(),
+		},
+	}
+	req := httptest.NewRequest(http.MethodPost, "https://example.com/v1internal:generateContent", strings.NewReader(`{"request":{}}`))
+	req.Header.Set("User-Agent", "DeepSeek-Harness/1.0")
+	req.Header.Set("X-Goog-Api-Client", "gemini-cli/0.1")
+	req.Header.Set("X-Goog-Api-Key", "foreign-key")
+	req.Header.Set("X-Client-Request-Id", "foreign-request")
+
+	if err := executor.PrepareRequest(req, auth); err != nil {
+		t.Fatalf("PrepareRequest error: %v", err)
+	}
+	for _, header := range []string{"X-Goog-Api-Key", "X-Client-Request-Id"} {
+		if got := req.Header.Get(header); got != "" {
+			t.Errorf("foreign %s = %q, want it removed", header, got)
+		}
+	}
+	if got := req.Header.Get("User-Agent"); got != antigravityauth.ClientUserAgent {
+		t.Errorf("User-Agent = %q, want %q", got, antigravityauth.ClientUserAgent)
+	}
+	if got := req.Header.Get("X-Goog-Api-Client"); got != antigravityauth.APIClient {
+		t.Errorf("X-Goog-Api-Client = %q, want %q", got, antigravityauth.APIClient)
 	}
 }
 

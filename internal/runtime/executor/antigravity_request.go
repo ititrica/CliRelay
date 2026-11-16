@@ -1,8 +1,10 @@
 package executor
 
 import (
+	"bytes"
 	"context"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"strings"
@@ -131,7 +133,17 @@ func (e *AntigravityExecutor) buildRequest(ctx context.Context, auth *cliproxyau
 	if host := resolveHost(base); host != "" {
 		httpReq.Host = host
 	}
-	return httpReq, []byte(payloadStr), nil
+	// Run the filter once more after the Antigravity wrapper and any synthetic
+	// preamble have been assembled. Translation can move a top-level
+	// systemInstruction under request.systemInstruction, so filtering only the
+	// pre-wrapper payload can leave the exact upstream path untouched.
+	finalPayload := e.obfuscateSensitiveWords([]byte(payloadStr))
+	httpReq.Body = io.NopCloser(bytes.NewReader(finalPayload))
+	httpReq.GetBody = func() (io.ReadCloser, error) {
+		return io.NopCloser(bytes.NewReader(finalPayload)), nil
+	}
+	httpReq.ContentLength = int64(len(finalPayload))
+	return httpReq, finalPayload, nil
 }
 
 func (e *AntigravityExecutor) buildCountTokensRequest(ctx context.Context, auth *cliproxyauth.Auth, token string, payload []byte, alt, baseURL string) (*http.Request, []byte, error) {

@@ -103,7 +103,15 @@ func obfuscateSensitiveWordsInSystemInstruction(payload []byte, matcher *Sensiti
 		return payload
 	}
 
-	for _, path := range []string{"request.systemInstruction", "request.system_instruction"} {
+	// Translation may produce either the top-level Gemini shape or the
+	// Antigravity `request` wrapper. Handle both; the wrapper is added after
+	// translation in some execution paths.
+	for _, path := range []string{
+		"systemInstruction",
+		"system_instruction",
+		"request.systemInstruction",
+		"request.system_instruction",
+	} {
 		instruction := gjson.GetBytes(payload, path)
 		if !instruction.Exists() {
 			continue
