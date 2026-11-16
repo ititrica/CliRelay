@@ -114,6 +114,17 @@ func TestAntigravityRewritesExplicitExternalAssistantIdentity(t *testing.T) {
 	}
 }
 
+func TestAntigravityRewordsKnownOpenClawIdentity(t *testing.T) {
+	executor := NewAntigravityExecutor(&config.Config{})
+	payload := []byte(`{"request":{"systemInstruction":{"parts":[{"text":"You are a personal assistant running inside OpenClaw.\nKeep the OpenClaw behavior."}]}}}`)
+
+	got := executor.obfuscateSensitiveWords(payload)
+	wantPrefix := "You are a personal assistant that runs inside OpenClaw.\n"
+	if systemText := gjson.GetBytes(got, "request.systemInstruction.parts.0.text").String(); !strings.HasPrefix(systemText, wantPrefix) || !strings.Contains(systemText, "Keep the OpenClaw behavior.") {
+		t.Fatalf("OpenClaw identity rewrite = %q, want reworded identity and preserved remainder", systemText)
+	}
+}
+
 func TestAntigravityConfiguredSensitiveWordsAreAdditive(t *testing.T) {
 	executor := NewAntigravityExecutor(&config.Config{
 		Antigravity: config.AntigravityConfig{SensitiveWords: []string{"DeepSeek Harness"}},

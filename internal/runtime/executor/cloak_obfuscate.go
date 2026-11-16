@@ -22,6 +22,11 @@ const zeroWidthSpace = "\u200B"
 // identity marker such as "powered by" or "built on".
 var antigravityIdentityDeclarationRe = regexp.MustCompile(`(?is)^(\s*(?:<[^>]+>\s*)*)(?:(?:you are|you're)\s+(?:an?\s+)?(?:ai\s+)?(?:coding|software|terminal)\s+(?:agent|assistant)(?:\s+(?:powered by|built on|running on|from|using|for)\s+[^.!?\n]{1,240})?|(?:you are|you're)\s+(?:an?\s+)?ai\s+(?:agent|assistant)\s+(?:powered by|built on|running on|from|using|for|created by)\s+[^.!?\n]{1,240})(?:[.!?]|$)`)
 
+// This exact OpenClaw sentence is a separately verified fingerprint. Public
+// Antigravity-compatible clients reword it while preserving its meaning,
+// rather than replacing the whole identity with a synthetic preamble.
+var antigravityOpenClawIdentityRe = regexp.MustCompile(`(?is)^(\s*(?:<[^>]+>\s*)*)you are a personal assistant running inside openclaw\.`)
+
 const antigravityIdentityDeclaration = "You are Antigravity, an AI coding assistant."
 
 // SensitiveWordMatcher holds the compiled regex for matching sensitive words.
@@ -93,6 +98,9 @@ func (m *SensitiveWordMatcher) obfuscateText(text string) string {
 }
 
 func rewriteAntigravityIdentityDeclaration(text string) string {
+	if antigravityOpenClawIdentityRe.MatchString(text) {
+		return antigravityOpenClawIdentityRe.ReplaceAllString(text, `${1}You are a personal assistant that runs inside OpenClaw.`)
+	}
 	if !antigravityIdentityDeclarationRe.MatchString(text) {
 		return text
 	}
