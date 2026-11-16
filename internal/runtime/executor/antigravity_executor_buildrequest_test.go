@@ -27,7 +27,7 @@ func TestAntigravityBuildRequest_SanitizesGeminiToolSchema(t *testing.T) {
 	assertSchemaSanitizedAndPropertyPreserved(t, params)
 }
 
-func TestAntigravityBuildRequestAddsHubInstructionAndHeadersForGeminiFamily(t *testing.T) {
+func TestAntigravityBuildRequestDoesNotAddSyntheticPromptForGeminiFamily(t *testing.T) {
 	cfg := &config.Config{}
 	cfg.IdentityFingerprint.Antigravity = config.NormalizeAntigravityIdentityFingerprint(config.AntigravityIdentityFingerprintConfig{})
 	executor := NewAntigravityExecutor(cfg)
@@ -58,14 +58,36 @@ func TestAntigravityBuildRequestAddsHubInstructionAndHeadersForGeminiFamily(t *t
 		t.Fatalf("read request body error: %v", err)
 	}
 	parts := gjson.GetBytes(raw, "request.systemInstruction.parts").Array()
-	if len(parts) < 3 {
-		t.Fatalf("system instruction parts = %d, want Hub preamble plus original prompt: %s", len(parts), raw)
+	if len(parts) != 1 {
+		t.Fatalf("system instruction parts = %d, want the caller's single prompt without synthetic Hub text: %s", len(parts), raw)
 	}
-	if got := parts[0].Get("text").String(); got != systemInstruction {
-		t.Fatalf("Hub system instruction = %q, want %q", got, systemInstruction)
-	}
-	if got := parts[2].Get("text").String(); got != "You are a foreign coding agent." {
+	if got := parts[0].Get("text").String(); got != "You are a foreign coding agent." {
 		t.Fatalf("original system instruction = %q, want it preserved", got)
+	}
+}
+
+func TestAntigravityBuildRequestKeepsHubPreambleForAntigravitySchema(t *testing.T) {
+	cfg := &config.Config{}
+	cfg.IdentityFingerprint.Antigravity = config.NormalizeAntigravityIdentityFingerprint(config.AntigravityIdentityFingerprintConfig{})
+	executor := NewAntigravityExecutor(cfg)
+	auth := &cliproxyauth.Auth{Metadata: map[string]any{"project_id": "test-project"}}
+
+	req, _, err := executor.buildRequest(context.Background(), auth, "token", "claude-opus-4-6", []byte(`{
+		"request": {
+			"contents": [{"role":"user","parts":[{"text":"hello"}]}],
+			"systemInstruction": {"parts":[{"text":"You are a foreign coding agent."}]}
+		}
+	}`), true, "", "https://example.com", 0)
+	if err != nil {
+		t.Fatalf("buildRequest error: %v", err)
+	}
+	raw, err := io.ReadAll(req.Body)
+	if err != nil {
+		t.Fatalf("read request body error: %v", err)
+	}
+	parts := gjson.GetBytes(raw, "request.systemInstruction.parts").Array()
+	if len(parts) < 3 || parts[0].Get("text").String() != systemInstruction || parts[2].Get("text").String() != "You are a foreign coding agent." {
+		t.Fatalf("Antigravity schema system instruction = %s, want Hub preamble followed by caller prompt", raw)
 	}
 }
 

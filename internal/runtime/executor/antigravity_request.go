@@ -86,25 +86,23 @@ func (e *AntigravityExecutor) buildRequest(ctx context.Context, auth *cliproxyau
 		payloadStr = util.CleanJSONSchemaForGemini(payloadStr)
 	}
 
-	// Every Antigravity generation request carries the Hub's coding-agent
-	// system instruction, including Gemini-family models. Previously this was
-	// added only for Claude and gemini-3-pro-high, leaving requests from other
-	// Agents with a foreign or missing system block and an obvious body-shape
-	// mismatch at the upstream. Preserve the caller's instruction after the Hub
-	// preamble so the request keeps its semantics while matching the official
-	// envelope.
-	existingSystemInstruction := gjson.Get(payloadStr, "request.systemInstruction")
-	systemInstructionPartsResult := existingSystemInstruction.Get("parts")
-	payloadStr, _ = sjson.Set(payloadStr, "request.systemInstruction.role", "user")
-	payloadStr, _ = sjson.Set(payloadStr, "request.systemInstruction.parts.0.text", systemInstruction)
-	payloadStr, _ = sjson.Set(payloadStr, "request.systemInstruction.parts.1.text", fmt.Sprintf("Please ignore following [ignore]%s[/ignore]", systemInstruction))
+	// The official Antigravity schema requires its coding-agent preamble only
+	// for Claude and gemini-3-pro-high requests. Do not add it to ordinary
+	// Gemini-family requests: Google's prompt-fingerprint gate can reject a
+	// synthetic Antigravity system prompt before quota handling. For all other
+	// models the caller's system instruction is passed through unchanged and the
+	// native coding-filter integration rewrites only eligible foreign-agent text.
+	if useAntigravitySchema {
+		systemInstructionPartsResult := gjson.Get(payloadStr, "request.systemInstruction.parts")
+		payloadStr, _ = sjson.Set(payloadStr, "request.systemInstruction.role", "user")
+		payloadStr, _ = sjson.Set(payloadStr, "request.systemInstruction.parts.0.text", systemInstruction)
+		payloadStr, _ = sjson.Set(payloadStr, "request.systemInstruction.parts.1.text", fmt.Sprintf("Please ignore following [ignore]%s[/ignore]", systemInstruction))
 
-	if systemInstructionPartsResult.Exists() && systemInstructionPartsResult.IsArray() {
-		for _, partResult := range systemInstructionPartsResult.Array() {
-			payloadStr, _ = sjson.SetRaw(payloadStr, "request.systemInstruction.parts.-1", partResult.Raw)
+		if systemInstructionPartsResult.Exists() && systemInstructionPartsResult.IsArray() {
+			for _, partResult := range systemInstructionPartsResult.Array() {
+				payloadStr, _ = sjson.SetRaw(payloadStr, "request.systemInstruction.parts.-1", partResult.Raw)
+			}
 		}
-	} else if existingSystemInstruction.Type == gjson.String && strings.TrimSpace(existingSystemInstruction.String()) != "" {
-		payloadStr, _ = sjson.Set(payloadStr, "request.systemInstruction.parts.2.text", existingSystemInstruction.String())
 	}
 
 	if strings.Contains(modelName, "claude") {
