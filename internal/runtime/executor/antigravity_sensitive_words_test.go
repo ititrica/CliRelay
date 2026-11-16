@@ -48,6 +48,22 @@ func TestAntigravityDefaultSensitiveWordsObfuscatesKnownKeywords(t *testing.T) {
 	}
 }
 
+func TestAntigravityDefaultSensitiveWordsObfuscatesSkillCatalogMarkers(t *testing.T) {
+	executor := NewAntigravityExecutor(&config.Config{})
+	payload := []byte(`{"request":{"systemInstruction":{"parts":[{"text":"\u0003available_skills\u0003\nUse a skill when the task matches its description: call the skill tool. Use the read tool and Use the glob tool.\u0003/available_skills\u0003"}]},"contents":[{"role":"user","parts":[{"text":"available_skills stays in user content"}]}]}}`)
+
+	got := executor.obfuscateSensitiveWords(payload)
+	systemText := gjson.GetBytes(got, "request.systemInstruction.parts.0.text").String()
+	for _, phrase := range []string{"available_skills", "Use a skill", "call the skill tool", "Use the read tool", "Use the glob tool"} {
+		if strings.Contains(systemText, phrase) {
+			t.Fatalf("system instruction retained raw skill-catalog fingerprint %q: %q", phrase, systemText)
+		}
+	}
+	if contentText := gjson.GetBytes(got, "request.contents.0.parts.0.text").String(); contentText != "available_skills stays in user content" {
+		t.Fatalf("user content was changed: %q", contentText)
+	}
+}
+
 func TestAntigravityConfiguredSensitiveWordsAreAdditive(t *testing.T) {
 	executor := NewAntigravityExecutor(&config.Config{
 		Antigravity: config.AntigravityConfig{SensitiveWords: []string{"DeepSeek Harness"}},

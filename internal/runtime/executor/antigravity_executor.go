@@ -45,6 +45,18 @@ const (
 // when the credential has available quota.
 func DefaultAntigravitySensitiveWords() []string {
 	return []string{
+		// Coding clients often prepend a tool/skill catalog to an otherwise
+		// ordinary Gemini system instruction. Google fingerprints these catalog
+		// markers as strongly as the client names below, so keep them out of the
+		// literal upstream prompt while preserving the surrounding instructions.
+		"available_skills",
+		"available_tools",
+		"skill_content",
+		"system-reminder",
+		"Use a skill",
+		"call the skill tool",
+		"Use the read tool",
+		"Use the glob tool",
 		"Claude Agent SDK",
 		"Hermes Agent",
 		"Nous Research",
