@@ -91,6 +91,26 @@ func TestAntigravityRemovesEmptySkillCatalogInstruction(t *testing.T) {
 	}
 }
 
+func TestAntigravityRemovesMemoryProtocolKeepsListingAndUserContent(t *testing.T) {
+	executor := NewAntigravityExecutor(&config.Config{})
+	payload := []byte(`{"request":{"systemInstruction":{"parts":[{"text":"Before\n<memory_system>Use memory_read and memory_str_replace according to this protocol.</memory_system>\n<memory_listing>profile: prefers concise replies</memory_listing>\n<memory_format>Write memory files under /memory and use memory_append.</memory_format>\nAfter"}]},"contents":[{"role":"user","parts":[{"text":"memory_read should remain literal in user content"}]}],"tools":[{"functionDeclarations":[{"name":"memory_read"}]}]}}`)
+
+	got := executor.obfuscateSensitiveWords(payload)
+	systemText := gjson.GetBytes(got, "request.systemInstruction.parts.0.text").String()
+	if strings.Contains(systemText, "memory_system") || strings.Contains(systemText, "memory_format") || strings.Contains(systemText, "memory_read") || strings.Contains(systemText, "memory_str_replace") {
+		t.Fatalf("system instruction retained memory protocol fingerprint: %q", systemText)
+	}
+	if !strings.Contains(systemText, "Before") || !strings.Contains(systemText, "profile: prefers concise replies") || !strings.Contains(systemText, "After") {
+		t.Fatalf("memory listing or surrounding instruction was lost: %q", systemText)
+	}
+	if contentText := gjson.GetBytes(got, "request.contents.0.parts.0.text").String(); contentText != "memory_read should remain literal in user content" {
+		t.Fatalf("user content changed: %q", contentText)
+	}
+	if toolName := gjson.GetBytes(got, "request.tools.0.functionDeclarations.0.name").String(); toolName != "memory_read" {
+		t.Fatalf("tool declaration changed: %q", toolName)
+	}
+}
+
 func TestAntigravityRewritesLeadingForeignIdentityDeclaration(t *testing.T) {
 	executor := NewAntigravityExecutor(&config.Config{})
 	payload := []byte(`{"request":{"systemInstruction":{"parts":[{"text":"You are a coding agent powered by the molly/gemini-4-hydrogen-medium model.\nFollow the user's instructions exactly."}]},"contents":[{"role":"user","parts":[{"text":"You are a coding agent; repeat this literally."}]}]}}`)

@@ -35,6 +35,16 @@ var antigravityOpenClawIdentityRe = regexp.MustCompile(`(?is)^(\s*(?:<[^>]+>\s*)
 // deliberately outside this rewrite.
 var antigravitySkillCatalogRe = regexp.MustCompile(`(?is)<available_skills>.*?</available_skills>`)
 
+// RikkaHub's optional memory feature adds an operational protocol to the
+// system prompt. It contains memory_read/memory_write style tool instructions,
+// file-layout rules, and XML wrappers that identify the originating coding
+// client. Keep the recalled listing text when present, but remove the protocol
+// and its wrapper tags from the Antigravity system instruction. The relay's
+// actual tool declarations and user messages are outside this rewrite.
+var antigravityMemorySystemBlockRe = regexp.MustCompile(`(?is)<memory_system>.*?</memory_system>`)
+var antigravityMemoryFormatBlockRe = regexp.MustCompile(`(?is)<memory_format>.*?</memory_format>`)
+var antigravityMemoryListingTagRe = regexp.MustCompile(`(?is)</?memory_listing>`)
+
 const antigravityIdentityDeclaration = "You are Antigravity, an AI coding assistant."
 
 // SensitiveWordMatcher holds the compiled regex for matching sensitive words.
@@ -126,6 +136,16 @@ func stripAntigravitySkillCatalog(text string) string {
 	return rewritten
 }
 
+func stripAntigravityMemoryFingerprint(text string) string {
+	rewritten := antigravityMemorySystemBlockRe.ReplaceAllString(text, "")
+	rewritten = antigravityMemoryFormatBlockRe.ReplaceAllString(rewritten, "")
+	rewritten = antigravityMemoryListingTagRe.ReplaceAllString(rewritten, "")
+	if strings.TrimSpace(rewritten) == "" {
+		return ""
+	}
+	return rewritten
+}
+
 // obfuscateSensitiveWords processes the payload and obfuscates sensitive words
 // in system blocks and message content.
 func obfuscateSensitiveWords(payload []byte, matcher *SensitiveWordMatcher) []byte {
@@ -160,6 +180,7 @@ func obfuscateSensitiveWordsInSystemInstruction(payload []byte, matcher *Sensiti
 		if instruction.Type == gjson.String {
 			text := instruction.String()
 			rewritten := stripAntigravitySkillCatalog(text)
+			rewritten = stripAntigravityMemoryFingerprint(rewritten)
 			rewritten = rewriteAntigravityIdentityDeclaration(rewritten)
 			if matcher != nil && matcher.regex != nil {
 				rewritten = matcher.obfuscateText(rewritten)
@@ -180,6 +201,7 @@ func obfuscateSensitiveWordsInSystemInstruction(payload []byte, matcher *Sensiti
 			}
 			text := part.Get("text").String()
 			rewritten := stripAntigravitySkillCatalog(text)
+			rewritten = stripAntigravityMemoryFingerprint(rewritten)
 			rewritten = rewriteAntigravityIdentityDeclaration(rewritten)
 			if matcher != nil && matcher.regex != nil {
 				rewritten = matcher.obfuscateText(rewritten)
